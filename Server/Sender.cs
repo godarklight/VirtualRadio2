@@ -30,7 +30,7 @@ namespace VirtualRadio.Server
 
         private void SendLoop()
         {
-            double blocksPerTick = 250000.0 / (256.0 * TimeSpan.TicksPerSecond);
+            double blocksPerTick = 250000.0 / (512.0 * TimeSpan.TicksPerSecond);
             long currentBlock = 0;
             long startTime = DateTime.UtcNow.Ticks;
             while (running)

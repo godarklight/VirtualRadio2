@@ -2,12 +2,13 @@ All packets:
 
 VR2 (3 bytes) | byte MESSAGE_TYPE (1 byte) | [PAYLOAD VARIABLE]
 
-Payload:
+(MESSAGE_TYPE) Payload:
 
-Heartbeat - 0 bytes
-Connection end - 0 bytes to variable, UTF8 encoded string for the disconnect reason
-Set VFO - 4 bytes int (Hz)
-Set Mode - 1 byte (ModeTypes)
-Set Rate - 4 bytes int
-Set IQ - 1 byte bool
-Data - 2 bytes sequence number, 512 bytes of u8 baseband audio data
+(0) Heartbeat - 0 bytes
+(1) Connection end - 0 bytes to variable, UTF8 encoded string for the disconnect reason
+(10) Set VFO - 4 bytes int (Hz)
+(11) Set Mode - 1 byte (ModeTypes)
+(12) Set Power - 4 bytes int
+(13) Set Rate - 4 bytes int
+(14) Set IQ - 1 byte bool
+(20) Audio Data - 2 bytes sequence number, 1024 bytes of s16le baseband audio data

@@ -8,99 +8,89 @@ namespace VirtualRadio.Server
 {
     class Client
     {
+        public const int BYTES_PER_PACKET = 1024;
         public long lastReceive = DateTime.UtcNow.Ticks;
         public long lastSend;
         public IPEndPoint endpoint;
-        public RingBuffer buffer = new RingBuffer(512, 16);
+        public RingBuffer buffer = new RingBuffer(BYTES_PER_PACKET, 32);
         public int frequency = 14100000;
         public double power = 0.25;
-        public int rate = 8000;
+        public int rate = 44100;
         public ModeType mode = ModeType.AM;
         public bool iq = true;
         //Audio baseband
-        byte[] readBlock = new byte[512];
+        byte[] readBlock = new byte[BYTES_PER_PACKET];
         double carrierAngle;
-        double blockPos = 0;
+        double audioPos = 0;
         //range = -1 to 1
         double[] audioBlock;
         double[] previousAudioBlock;
         double[] halfBlock;
-        Complex[] hilbertPrev = new Complex[512];
-        Complex[] hilbertMid = new Complex[512];
-        Complex[] hilbertNext = new Complex[512];
-        IFilter lowpassFilter = new WindowedSinc(2700, 500, 8000, false);
-        public Complex[] GetComplexBlock()
+        Complex[] hilbertPrev = new Complex[BYTES_PER_PACKET / 2];
+        Complex[] hilbertMid = new Complex[BYTES_PER_PACKET / 2];
+        Complex[] hilbertNext = new Complex[BYTES_PER_PACKET / 2];
+        public Complex[] WriteComplexBlock(Complex[] complexBlock)
         {
-            Complex[] complexBlock = new Complex[256];
             for (int i = 0; i < complexBlock.Length; i++)
             {
                 //Get power level, read next block if we are off the end
-                blockPos += rate / 250000.0;
-                if (audioBlock == null || blockPos > (audioBlock.Length - 1))
+                audioPos += rate / 250000.0;
+                if (audioBlock == null || audioPos > (audioBlock.Length - 1))
                 {
                     if (audioBlock != null)
                     {
                         double[] temp = audioBlock;
                         audioBlock = previousAudioBlock;
                         previousAudioBlock = temp;
-                        blockPos -= audioBlock.Length;
+                        audioPos -= audioBlock.Length;
                     }
                     else
                     {
-                        audioBlock = new double[512];
-                        previousAudioBlock = new double[512];
-                        halfBlock = new double[512];
+                        audioBlock = new double[BYTES_PER_PACKET / 2];
+                        previousAudioBlock = new double[BYTES_PER_PACKET / 2];
+                        halfBlock = new double[BYTES_PER_PACKET / 2];
                     }
                     buffer.Read(readBlock);
-                    for (int j = 0; j < readBlock.Length; j++)
-                    {
-                        //Filter the input to remove spikes
-                        lowpassFilter.AddSample((readBlock[j] / 128.0) - 1.0);
-                        double filteredValue = lowpassFilter.GetSample();
-                        audioBlock[j] = filteredValue;
-                        if (mode == ModeType.LSB || mode == ModeType.USB)
-                        {
-                            if (j == readBlock.Length - 1)
-                            {
+                    FormatConvert.S16ToDouble(readBlock, audioBlock);
 
-                                for (int k = 0; k < halfBlock.Length / 2; k++)
-                                {
-                                    halfBlock[k] = previousAudioBlock[k + halfBlock.Length / 2];
-                                    halfBlock[k + halfBlock.Length / 2] = audioBlock[k];
-                                }
-                                hilbertPrev = hilbertNext;
-                                hilbertNext = Hilbert.Calculate(audioBlock);
-                                hilbertMid = Hilbert.Calculate(halfBlock);
-                                int halfLength = hilbertMid.Length / 2;
-                                for (int l = 0; l < halfBlock.Length; l++)
-                                {
-                                    if (l < halfLength)
-                                    {
-                                        double prevPercent = 1.0 - (l / (double)halfLength);
-                                        hilbertMid[l] = hilbertMid[l] * (1.0 - prevPercent) + hilbertPrev[l + halfLength] * prevPercent;
-                                    }
-                                    else
-                                    {
-                                        double nextPercent = (l - halfLength) / (double)halfLength;
-                                        hilbertMid[l] = hilbertMid[l] * (1.0 - nextPercent) + hilbertNext[l - halfLength] * nextPercent;
-                                    }
-                                }
+                    if (mode == ModeType.LSB || mode == ModeType.USB)
+                    {
+                        for (int k = 0; k < halfBlock.Length / 2; k++)
+                        {
+                            halfBlock[k] = previousAudioBlock[k + halfBlock.Length / 2];
+                            halfBlock[k + halfBlock.Length / 2] = audioBlock[k];
+                        }
+                        hilbertPrev = hilbertNext;
+                        hilbertNext = Hilbert.Calculate(audioBlock);
+                        hilbertMid = Hilbert.Calculate(halfBlock);
+                        int halfLength = hilbertMid.Length / 2;
+                        for (int l = 0; l < halfBlock.Length; l++)
+                        {
+                            if (l < halfLength)
+                            {
+                                double prevPercent = 1.0 - (l / (double)halfLength);
+                                hilbertMid[l] = hilbertMid[l] * (1.0 - prevPercent) + hilbertPrev[l + halfLength] * prevPercent;
+                            }
+                            else
+                            {
+                                double nextPercent = (l - halfLength) / (double)halfLength;
+                                hilbertMid[l] = hilbertMid[l] * (1.0 - nextPercent) + hilbertNext[l - halfLength] * nextPercent;
                             }
                         }
                     }
                 }
 
                 Complex samplePower = 0;
-                double target = blockPos % 1;
-                if (blockPos < 0)
+                double target = audioPos % 1;
+                if (audioPos < 0)
                 {
-                    target = blockPos + 1;
+                    target = audioPos + 1;
                 }
                 if (mode != ModeType.LSB && mode != ModeType.USB)
                 {
                     double samplePowerd = 0;
                     //Interpolating between audio buffers
-                    if (blockPos < 0)
+                    if (audioPos < 0)
                     {
                         samplePowerd = previousAudioBlock[previousAudioBlock.Length - 1] * (1.0 - target);
                         samplePowerd += audioBlock[0] * target;
@@ -109,7 +99,7 @@ namespace VirtualRadio.Server
                     //Everything else
                     else
                     {
-                        int startIndex = (int)(blockPos);
+                        int startIndex = (int)(audioPos);
                         samplePowerd = audioBlock[startIndex] * (1.0 - target);
                         samplePowerd += audioBlock[startIndex + 1] * target;
                     }
@@ -119,7 +109,7 @@ namespace VirtualRadio.Server
                 {
                     //Interpolate between hilbert samples
                     int halfLength = hilbertMid.Length / 2;
-                    if (blockPos < 0)
+                    if (audioPos < 0)
                     {
                         //First sample for negative block pos (-1 to 0)
                         Complex a = hilbertPrev[halfLength - 1];
@@ -129,7 +119,7 @@ namespace VirtualRadio.Server
                     }
                     else
                     {
-                        int midIndex = (int)blockPos;
+                        int midIndex = (int)audioPos;
                         Complex a = hilbertMid[midIndex];
                         Complex b = hilbertMid[midIndex + 1];
                         samplePower = a * (1.0 - target);
@@ -144,7 +134,7 @@ namespace VirtualRadio.Server
                 {
                     //Convert from -1:1 to 0:1
                     double amPower = (samplePower.Real + 1.0) / 2.0;
-                    complexBlock[i] = carrier * power * amPower;
+                    complexBlock[i] += carrier * power * amPower;
                 }
                 if (mode == ModeType.FM || mode == ModeType.WFM)
                 {
@@ -157,7 +147,7 @@ namespace VirtualRadio.Server
                     {
                         carrierAngle += (Math.Tau * samplePower.Real * 75000.0) / 250000.0;
                     }
-                    complexBlock[i] = carrier * power;
+                    complexBlock[i] += carrier * power;
                 }
                 if (mode == ModeType.LSB || mode == ModeType.USB)
                 {
@@ -165,7 +155,7 @@ namespace VirtualRadio.Server
                     {
                         samplePower = Complex.Conjugate(samplePower);
                     }
-                    complexBlock[i] = carrier * samplePower * power;
+                    complexBlock[i] += carrier * samplePower * power;
                 }
 
                 while (carrierAngle > Math.Tau)

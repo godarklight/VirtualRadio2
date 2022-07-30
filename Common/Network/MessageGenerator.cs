@@ -94,8 +94,8 @@ namespace VirtualRadio.Network
 
         public static byte[] WriteData(ushort sequence)
         {
-            byte[] retVal = new byte[518];
-            WriteHeader(MessageType.DATA, retVal);
+            byte[] retVal = new byte[1030];
+            WriteHeader(MessageType.AUDIO_DATA, retVal);
             byte[] u2 = BitConverter.GetBytes(sequence);
             if (BitConverter.IsLittleEndian)
             {

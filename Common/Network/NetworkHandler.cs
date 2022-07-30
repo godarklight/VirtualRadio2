@@ -15,6 +15,7 @@ namespace VirtualRadio.Network
         public Action<IPEndPoint, string> HandleConnectionEnd;
         public Action<IPEndPoint, int> HandleSetVFO;
         public Action<IPEndPoint, double> HandleSetPower;
+        public Action<IPEndPoint, int> HandleSetRate;
         public Action<IPEndPoint, ModeType> HandleSetMode;
         public Action<IPEndPoint, bool> HandleSetIQ;
         public Action<IPEndPoint, ushort, byte[]> HandleData;
@@ -37,9 +38,17 @@ namespace VirtualRadio.Network
             switch (type)
             {
                 case MessageType.HEARTBEAT:
+                    if (HandleHeartbeat == null)
+                    {
+                        return;
+                    }
                     HandleHeartbeat(endpoint);
                     break;
                 case MessageType.CONNECTION_END:
+                    if (HandleConnectionEnd == null)
+                    {
+                        return;
+                    }
                     string reason = null;
                     if (buffer.Length > 4)
                     {
@@ -48,6 +57,10 @@ namespace VirtualRadio.Network
                     HandleConnectionEnd(endpoint, reason);
                     break;
                 case MessageType.SET_VFO:
+                    if (HandleSetVFO == null)
+                    {
+                        return;
+                    }
                     if (buffer.Length != 8)
                     {
                         return;
@@ -57,6 +70,10 @@ namespace VirtualRadio.Network
                     HandleSetVFO(endpoint, freq);
                     break;
                 case MessageType.SET_POWER:
+                    if (HandleSetPower == null)
+                    {
+                        return;
+                    }
                     if (buffer.Length != 8)
                     {
                         return;
@@ -75,6 +92,10 @@ namespace VirtualRadio.Network
                     HandleSetPower(endpoint, power);
                     break;
                 case MessageType.SET_MODE:
+                    if (HandleSetMode == null)
+                    {
+                        return;
+                    }
                     if (buffer.Length != 5)
                     {
                         return;
@@ -82,23 +103,35 @@ namespace VirtualRadio.Network
                     HandleSetMode(endpoint, (ModeType)buffer[4]);
                     break;
                 case MessageType.SET_RATE:
+                    if (HandleSetRate == null)
+                    {
+                        return;
+                    }
                     if (buffer.Length != 8)
                     {
                         return;
                     }
                     int rate = BitConverter.ToInt32(buffer, 4);
                     rate = IPAddress.NetworkToHostOrder(rate);
-                    HandleSetVFO(endpoint, rate);
+                    HandleSetRate(endpoint, rate);
                     break;
                 case MessageType.SET_IQ:
+                    if (HandleSetIQ == null)
+                    {
+                        return;
+                    }
                     if (buffer.Length != 5)
                     {
                         return;
                     }
                     HandleSetIQ(endpoint, buffer[4] != 0);
                     break;
-                case MessageType.DATA:
-                    if (buffer.Length != 518)
+                case MessageType.AUDIO_DATA:
+                    if (HandleData == null)
+                    {
+                        return;
+                    }
+                    if (buffer.Length != 1030)
                     {
                         return;
                     }
@@ -109,8 +142,8 @@ namespace VirtualRadio.Network
                         Array.Reverse(u2);
                     }
                     ushort sequence = BitConverter.ToUInt16(u2, 0);
-                    byte[] temp = new byte[512];
-                    Buffer.BlockCopy(buffer, 6, temp, 0, 512);
+                    byte[] temp = new byte[1024];
+                    Buffer.BlockCopy(buffer, 6, temp, 0, temp.Length);
                     HandleData(endpoint, sequence, temp);
                     break;
             }

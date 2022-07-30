@@ -18,10 +18,11 @@ namespace VirtualRadio.Server
             server.Server.DualMode = true;
             server.Start();
             server.BeginAcceptTcpClient(HandleConnect, null);
-            rtlDongleInfo[0] = 82;
-            rtlDongleInfo[1] = 84;
-            rtlDongleInfo[2] = 76;
-            rtlDongleInfo[3] = 48;
+            rtlDongleInfo[0] = (byte)'R';
+            rtlDongleInfo[1] = (byte)'T';
+            rtlDongleInfo[2] = (byte)'L';
+            rtlDongleInfo[3] = (byte)'0';
+            BitConverter.GetBytes(5).CopyTo(rtlDongleInfo, 4);
         }
 
         private void HandleConnect(IAsyncResult ar)

@@ -21,7 +21,9 @@ namespace VirtualRadio.Network
         {
             this.handler = handler;
             IPEndPoint listenAddr = new IPEndPoint(IPAddress.IPv6Any, port);
-            udpc = new UdpClient(listenAddr);
+            udpc = new UdpClient(AddressFamily.InterNetworkV6);
+            udpc.Client.DualMode = true;
+            udpc.Client.Bind(listenAddr);
             receiveLoop = new Thread(new ThreadStart(ReceiveLoop));
             receiveLoop.Name = "NetworkEndpoint-ReceiveLoop";
             receiveLoop.Start();

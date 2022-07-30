@@ -19,10 +19,17 @@ namespace VirtualRadio.Client
         NetworkEndpoint network;
         ConcurrentQueue<byte[]> sendAudio = new ConcurrentQueue<byte[]>();
         int oldFreq = 14100;
+        LowPassFilter lpfSSB = new LowPassFilter(2700, 44100);
+        LowPassFilter lpfAM = new LowPassFilter(9000, 44100);
+        ModeType mode = ModeType.USB;
+        double[] outputRaw = new double[512];
+        double[] outputFiltered = new double[512];
 
 
-        public ClientSender(NetworkEndpoint network)
+        public ClientSender(NetworkEndpoint network, string serverHostname, int serverPort)
         {
+            IPHostEntry iphe = Dns.GetHostEntry(serverHostname, System.Net.Sockets.AddressFamily.InterNetworkV6);
+            serverEndpoint = new IPEndPoint(iphe.AddressList[0], 5973);
             this.network = network;
             sendLoop = new Thread(new ThreadStart(SendLoop));
             sendLoop.Name = "Client-SendLoop";
@@ -36,7 +43,7 @@ namespace VirtualRadio.Client
             byte[] heartbeat = MessageGenerator.WriteHeartbeat();
             network.Enqueue(serverEndpoint, heartbeat);
 
-            double blocksPerTick = 8000.0 / (512.0 * TimeSpan.TicksPerSecond);
+            double blocksPerTick = 44100.0 / (512.0 * TimeSpan.TicksPerSecond);
             long currentBlock = 0;
             long startTime = DateTime.UtcNow.Ticks;
             ushort sequence = 0;
@@ -73,6 +80,7 @@ namespace VirtualRadio.Client
 
         public void SetMode(ModeType mode)
         {
+            this.mode = mode;
             byte[] fmMode = MessageGenerator.WriteMode(mode);
             network.Enqueue(serverEndpoint, fmMode);
         }
@@ -83,7 +91,7 @@ namespace VirtualRadio.Client
             if (Int32.TryParse(newFreq, out parseInt))
             {
                 oldFreq = parseInt;
-                byte[] vfo = MessageGenerator.WriteVFO(parseInt);
+                byte[] vfo = MessageGenerator.WriteVFO(parseInt * 1000);
                 network.Enqueue(serverEndpoint, vfo);
             }
             return oldFreq;
@@ -92,8 +100,27 @@ namespace VirtualRadio.Client
         public void MicEvent(byte[] input)
         {
             byte[] copy = new byte[input.Length];
-            Buffer.BlockCopy(input, 0, copy, 0, input.Length);
-            sendAudio.Enqueue(copy);
+            //Don't filter FM as it is frequency bound
+            if (mode == ModeType.WFM || mode == ModeType.FM)
+            {
+                Buffer.BlockCopy(input, 0, copy, 0, input.Length);
+            }
+            else
+            {
+                FormatConvert.S16ToDouble(input, outputRaw);
+                IFilter filter = lpfAM;
+                if (mode == ModeType.LSB || mode == ModeType.USB)
+                {
+                    filter = lpfSSB;
+                }
+                for (int i = 0; i < outputRaw.Length; i++)
+                {
+                    filter.AddSample(outputRaw[i]);
+                    outputFiltered[i] = filter.GetSample();
+                }
+                FormatConvert.DoubleToS16(outputFiltered, copy);
+                sendAudio.Enqueue(copy);
+            }
         }
 
         public void Stop()

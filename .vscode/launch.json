@@ -21,7 +21,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/Client/bin/Debug/net6.0/Client.dll",
-            "args": [],
+            "args": ["--server", "127.0.0.1"],
             "cwd": "${workspaceFolder}/Client/bin/Debug/net6.0/",
             "console": "internalConsole",
             "stopAtEntry": false
@@ -32,7 +32,22 @@
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/Client/bin/Debug/net6.0/Client.dll",
-            "args": ["--nogui"],
+            "args": [
+                "--nogui", "--server", "127.0.0.1"
+            ],
+            "cwd": "${workspaceFolder}/Client/bin/Debug/net6.0/",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Client GUI File",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/Client/bin/Debug/net6.0/Client.dll",
+            "args": [
+                "--file", "in.raw", "--server", "127.0.0.1"
+            ],
             "cwd": "${workspaceFolder}/Client/bin/Debug/net6.0/",
             "console": "internalConsole",
             "stopAtEntry": false

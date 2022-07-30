@@ -10,6 +10,6 @@ namespace VirtualRadio.Network
         SET_POWER = 12,
         SET_RATE = 13,
         SET_IQ = 14,
-        DATA = 20,
+        AUDIO_DATA = 20,
     }
 }
